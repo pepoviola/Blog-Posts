@@ -1,9 +1,8 @@
 {
-    "name": "01_basic_express"
+    "name": "02_routes_express"
   , "version": "0.0.1"
   , "private": true
   , "dependencies": {
       "express": "2.5.8"
-    , "ejs": "*"
   }
 }
