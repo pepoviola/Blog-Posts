@@ -1,0 +1,258 @@
+<link href="http://google-code-prettify.googlecode.com/svn/trunk/styles/sunburst.css" rel="stylesheet" type="text/css"></link>
+<script src="http://google-code-prettify.googlecode.com/svn/trunk/src/prettify.js" type="text/javascript"></script>
+Este es el tercero post de la serie sobre node.js (socket.IO y mongoDB), serie que por motivos de tiempos no pude escribir antes. En el post anterior hablamos sobre rutas y el manejo de las mismas ( <a href="http://javierviola.blogspot.com/2012/03/en-01-express-framework-basic-config.html" target="_Blank"> post #2</a>).<br/>
+Este capitulo es sobre el manejo de middlewares, como crearlos, extender y customizar las funcionalidades que ya nos entrega express. Lo m&aacute;s importante cuando trabajemos con middlewares es no perder de vista el orden de los mismos, ya que estos se ejecutan en el orden que se configuran y es muy importante tener esto en mente a la hora de la dependencia entre ellos<br/>
+
+</br>
+Comencemos con algo simple, veamos el siguiente ejemplo: 
+</br>
+<blockquote class="tr_bq"><pre class="prettyprint">
+ 
+ var express = require('express');
+ var app = express.createServer();
+ app.use(VisitMiddleware);
+ app.use(LoggerMiddleware);
+ app.use(express.bodyParser());
+ 
+</pre></blockquote>
+<br/>
+En el c&oacute;digo anterior creamos nuestro servidor y definimos tres middlewares (VisitMiddleware, LoggerMiddleware y bodyParser), como dijimos antes por cada request que atienda nuestro servidor se ejecutaran en ese orden.<br/>
+Luego configuramos las rutas sobre las cuales vamos a atender los request, que para este ejemplo ser&aacute; solamente "/" sobre cualquier verbo HTTP y configuramos el puerto en el que va a escuchar.
+<blockquote class="tr_bq"><pre class="prettyprint">
+ app.all('/',function(req,res){
+	res.header('200');
+	res.write("the request is logged\n");
+	res.write("You are the visit n° "+req.visit+"\n");
+	res.end();
+ });
+ app.listen(3001);
+</pre></blockquote>
+<br/>
+Probamos nuestro c&oacute;digo y el resultado deber&iacute;a ser algo como lo que sigue:
+<blockquote class="tr_bq"><pre class="prettyprint">
+
+</pre></blockquote>
+<br/>
+En este caso vemos, en la consola donde corre el servidor, el log de los request y notamos que el "body:" es <strong>undefined</strong>, esto se debe a que el middleware que realiza el log del request se ejecuta antes que el middleware provisto por express (bodyParser()). Como mencionaba al principio el orden de los middlewares es escencial a la hora de configurar nuestra aplicaci&oacute;n
+
+
+
+
+
+
+
+
+<!--old -->
+Con lo anterior establecemos como manejaremos un requerimiento de nuestro <i>index (ej: http://javierviola.blogspot.com) </i> y que para este post en particular responderemos simplemente con el texto  <i>handler : /</i>.
+<br/>
+Antes de seguir una aclaraci&oacute;n, para demostrar el uso de rutas utilice simplemente los m&eacute;todos <i>res.write y res.end</i> con el fin de imprimir la funci&oacute;n que respondi&oacute; el requerimiento y los par&aacute;metros pasados.
+<br/>
+Habiendo dicho eso, sigamos...<br/>
+Probamos la ruta / <br/>
+<blockquote class="tr_bq"><pre class="prettyprint">
+lucaMac:02-Routes pepo$ curl localhost:3000
+handler : / 
+
+lucaMac:02-Routes pepo$ curl localhost:3000/
+handler : / 
+</pre></blockquote>	
+Vemos que responde a los dos requerimientos, ya que express se encarga de esa &uacute;ltima barra (/) por nosotros.<br/>
+Ahora imaginemos que nuestra aplicaci&oacute;n maneja usuarios, por lo que definimos lo siguiente: <br/>
+<blockquote class="tr_bq"><pre class="prettyprint">
+app.get('/users/:id?',function(req,res){
+	res.write('handler: /users/:id? \n');
+	res.write('parametros: \n');
+	for(key in req.params){
+		res.write('\t'+key+' : '+req.params[key]);
+	}
+	res.write('\n');
+	res.end();	
+});
+</pre></blockquote>
+<br/>
+Esto nos permitir&iacute;a responder tanto a un <i>GET</i> de /users como a /users/12 o /users/pedro, y esto es posible porque el primer par&aacute;metro de la funci&oacuet;n get express lo utiliza como una expresi&oacute;n regular, por lo cual esta definici&oacute;n puede servir para lista todos los usuarios, algun usuario o los usuarios que matcheen con el valor de :id.<br/>
+Y esto es posible porque :id define un <i>placeholder</i> lo cual nos permite acceder al valor a trav&eacute;s del objeto <i>req.params</i>.<br/>
+Veamos las diferentes respuestas:<br/>
+<blockquote class="tr_bq"><pre class="prettyprint">
+	lucaMac:02-Routes pepo$ curl localhost:3000/users
+	handler: /users/:id? 
+	parametros: 
+		id : undefined
+	lucaMac:02-Routes pepo$ curl localhost:3000/users/pedro
+	handler: /users/:id? 
+	parametros: 
+		id : pedro
+	lucaMac:02-Routes pepo$ curl localhost:3000/users/25
+	handler: /users/:id? 
+	parametros: 
+		id : 25
+
+</pre></blockquote>
+Tambi&eacute;n podemos definir varios <i>placeholders</i> simplemente cambiando el primer argumento:<br/>
+<blockquote class="tr_bq"><pre class="prettyprint">
+	 app.get('/users/:id/:action',function(req,res){
+	 	res.write('handler: /users/:id \n');
+	 	res.write('parametros: \n');
+	 	for(key in req.params){
+	 		res.write('\t'+key+' : '+req.params[key]+'\n');
+	 	}
+		res.end();	
+	 });
+	
+</pre></blockquote>
+Lo cual nos permite acceder a los par&aacute;metros id y action.<br/>
+Y si bien esto es muy &uacute;til, podemos hacer cosas m&aacute;s complejas gracias a las <i>regex</i> como por ejemplo:<br/>
+<blockquote class="tr_bq"><pre class="prettyprint">
+	app.get('/users/:id([0-9]+)/:action(edit|delete|create)',function(req,res){
+		res.write('handler: /users/:id \n');
+		res.write('parametros: \n');
+		for(key in req.params){
+			res.write('\t'+key+' : '+req.params[key]+'\n');
+		}
+		res.end();	
+	});
+		
+</pre></blockquote>
+Y como pueden observar, aqu&iacute; no s&oacute;lo accedemos a id y action, sino que restringimos el primero a que sea num&eacute;rico y damos tres opciones para el segundo, gracias a las regex :) <br/>
+Veamos como funciona:
+<blockquote class="tr_bq"><pre class="prettyprint">
+	curl localhost:3000/users/25/edit
+	handler: /users/:id 
+	parametros: 
+		id : 25
+		action : edit
+	lucaMac:02-Routes pepo$ curl localhost:3000/users/25/delete
+	handler: /users/:id 
+	parametros: 
+		id : 25
+		action : delete
+	lucaMac:02-Routes pepo$ curl localhost:3000/users/25/del
+	Cannot GET /users/25/del
+	lucaMac:02-Routes pepo$ curl localhost:3000/users/pedro/delete
+	Cannot GET /users/pedro/delete
+</pre></blockquote>
+Como vemos funciona y si la regex no se cumple <i>404</i> no se puede encontrar....
+<blockquote class="tr_bq"><pre class="prettyprint">
+	lucaMac:02-Routes pepo$ curl localhost:3000/users/pedro/delete -I
+	HTTP/1.1 404 Not Found
+	X-Powered-By: Express
+	Content-Type: text/plain
+	Connection: keep-alive
+
+</pre></blockquote>
+<span style="font-size:12px;color:red">* Ya veremos al final una posibilidad de manejar esto de una forma m&aacute;s pro</span><br/>
+<br/><br/>
+Bueno ya manejamos los <i>GETs</i> ahora queremos manejar los <i>POSTs</i> para ello definimos: <br/>
+
+<blockquote class="tr_bq"><pre class="prettyprint">
+app.post('/users',function(req,res){
+	res.write('handler post: /users/ \n');
+	res.write('parametros en body: \n');
+	for(key in req.body){
+		res.write('\t'+key+' : '+req.body[key]+'\n');
+	}
+	res.end();	
+});
+</pre></blockquote>
+Y en este caso nos valemos del middleware <i>bodyParser</i> que nos permite acceder a los valores pasados a trav&eacute;s del objeto req.body.<br/>
+Una cosa interesante de express es que nos ofrece el middleware <i>methodOverride</i> que nos permite ser m&aacute;s sem&aacute;ntico en nustras rutas, ya que no permite que un <i>POST</i> sea transformado en un <i>PUT</i> o </DELETE> y as&iacute; ser manejado por app.put o app.delete respectivamente...<br/>
+Para ello veamos la siguiente definici&oacute;n:<br/>
+<blockquote class="tr_bq"><pre class="prettyprint">
+	/* post */
+	app.post('/users',function(req,res){
+		res.write('handler post: /users/ \n');
+		res.write('parametros en body: \n');
+		for(key in req.body){
+			res.write('\t'+key+' : '+req.body[key]+'\n');
+		}
+		res.end();	
+	});
+
+	/* We can use put to be more semantics, like a RESTful api.
+		 For this be use the middleware methodOverride, this 
+		 middleware check for the input _method in the body
+		 (this input could be hidden for don't show to the 
+		 end user), and if its present tranform the post in the 
+		 _method input value and don't pass this in req.body
+	 */
+	app.put('/users',function(req,res){
+		res.write('handler put: /users/ \n');
+		res.write('parametros en body: \n');
+		for(key in req.body){
+			res.write('\t'+key+' : '+req.body[key]+'\n');
+		}
+		res.end();	
+	});
+
+	/* delete, as in put we can use methodOverride to be
+	   more semantic 
+	*/
+	app.delete('/users',function(req,res){
+		res.write('handler delete: /users/ \n');
+		res.write('parametros en body: \n');
+		for(key in req.body){
+			res.write('\t'+key+' : '+req.body[key]+'\n');
+		}
+		res.end();	
+	});
+	
+</pre></blockquote>
+Como vemos definimos la misma ruta para los tres <i>verbos</i> http (POST,PUT,DELETE), y gracias al middleware methodOverride atender cada uno de ellos seg&uacute;n el valor del input <i>_method</i> que se pase, y para explicarlo mejor un ejemplo:<br/>
+Un post com&uacute;n:</br> 
+<blockquote class="tr_bq"><pre class="prettyprint">
+	lucaMac:02-Routes pepo$ curl -X POST -d "id=32&action=delete" localhost:3000/users/
+	handler post: /users/ 
+	parametros en body: 
+		id : 32
+		action : delete
+	
+</pre></blockquote>
+Un post, pero que ser&aacute; respondido como put:<br/>
+<blockquote class="tr_bq"><pre class="prettyprint">
+	lucaMac:02-Routes pepo$ curl -X POST -d "id=32&action=delete&_method=put" localhost:3000/users/
+	handler put: /users/ 
+	parametros en body: 
+		id : 32
+		action : delete
+	
+</pre></blockquote>
+<span style="color:blue;">vean como se pasa el valor de _method para que el middleware sobreescriba el m&eacute;todo</span><br>
+Y por &uacute;ltimo el mismo post, pero respondido como delete
+<blockquote class="tr_bq"><pre class="prettyprint">
+	lucaMac:02-Routes pepo$ curl -X POST -d "id=32&action=delete&_method=delete" localhost:3000/users/
+	handler delete: /users/ 
+	parametros en body: 
+		id : 32
+		action : delete	
+</pre></blockquote>
+Y con esto queda explicado el middleware...<br/>
+Una cosa importante a tener en cuenta es que las rutas se procesan secuencialmente y en la ubicaci&oacute;n que fueron declaradas, es por eso que es muy importante hacer una declaraci&oacute;n ordenada de nuestras rutas para que cada requerimiento sea atendido por la ruta que queramos y no por otra<br/>
+
+Y haciendo uso de esto &uacute;ltimo, y utilizando un <i>wildcard</i> podemos manejar los errores <i>404</i> de una forma simple con esta ruta al final de todo:<br/>
+<blockquote class="tr_bq"><pre class="prettyprint">
+	app.all('*',function(req,res){
+		res.write('handler all: *\n');
+		res.write('ERR, no regex match\n');
+		res.end();
+	});
+	
+</pre></blockquote>
+De esta forma atenderemos cualquier ruta (*) y en cualquier <i>verbo</i> http que no haya sido manejada anteriormente, con lo cual es muy &uacute;til para servir errores 404<br/>
+Veamos como funciona:<br/>
+<blockquote class="tr_bq"><pre class="prettyprint">
+	lucaMac:02-Routes pepo$ curl -X POST -d "id=32&action=delete" localhost:3000/users/dasdsdas
+	handler all: *
+	ERR, no regex match
+	lucaMac:02-Routes pepo$ curl -X GET -d "id=32&action=delete" localhost:3000/usedasd
+	handler all: *
+	ERR, no regex match
+	
+</pre></blockquote>
+
+Espero que haya sido claro en como es el uso de rutas con express y cualquier cosa no duden en contactarme<br/>
+Hasta la pr&oacute;xima (con la explicaci&oacute;n de como funcionan los middlewares :) )
+ 
+ 
+<script>
+prettyPrint();
+</script>
